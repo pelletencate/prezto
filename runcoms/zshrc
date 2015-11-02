@@ -11,3 +11,134 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
 fi
 
 # Customize to your needs...
+
+# Load NVM
+export NVM_DIR=~/.nvm
+source $(brew --prefix nvm)/nvm.sh
+
+###########
+# Aliases #
+###########
+alias ea='e ~/.zshrc && source ~/.zshrc'
+
+alias a2c='aria2c -x10 -s10 -k1M'
+
+# Git
+alias gu='git up'
+alias hf='gss; gu; git flow hotfix start "v$(($(git tag | ag v\\d+$ | sort | tail -n 1 | cut -d v -f 2) + 1))" && gsp'
+
+# Occasion
+alias oc='~/dev/occasion'
+alias pc='heroku run rails c -r production'
+
+# Zeus
+alias kz='pkill -kill zeus; pkill -kill fsevents-wrapper; rm -f .zeus.sock' 
+
+#############
+# Functions #
+#############
+
+# ZEUS STARTER #
+#--------------#
+z() { 
+	if (( $# == 0 )) then 
+		while; do
+			[ -e .zeus.dead ] || zeus start
+			sleep 1 || break
+		done
+	else 
+		zeus $*
+	fi 
+}
+
+zs() {
+	while; do 
+		[ -e .zeus.dead ] || z s
+		sleep 1 || break
+	done
+}
+
+# DATABASE UPDATER #
+#------------------#
+bda() {
+	oc
+	echo "* Locating dump"
+
+	if (( $# == 0 )) then 
+		DUMP=$(heroku pg:backups info -r production | cut -d ' ' -f 4 | head -n 1)			
+	else 
+		DUMP=$* 
+	fi
+
+	[ -e "dumps/"$DUMP ] || aria2c -s10 -x10 -k1M -o dumps/$DUMP $(heroku pg:backups public-url $DUMP -r production)
+	if [ "$?" -ne "0" ]; then
+		rm -f dumps/$DUMP*
+		echo "Incorrect dump: $DUMP"
+		return
+	fi
+
+	echo "* Restoring dump"
+
+	touch .zeus.dead
+	kz
+	rm -f db/schema.rb 
+	dropdb --if-exists occsn > /dev/null &&
+	createdb occsn
+
+	if [ "$?" -ne "0" ]; then
+		echo "Failed dropping / creating databases. Exiting."
+		return
+	fi
+
+	pg_restore --no-acl --no-owner -h localhost -d occsn dumps/$DUMP
+
+	echo "* Installing dependencies"
+	bundle install | grep -v '^Us'
+	
+	echo "* Migrating"
+	rake parallel:drop parallel:create db:migrate db:seed patch_operators_hosts parallel:prepare
+	rm -f .zeus.dead
+
+	echo "* Annotating"
+	annotate
+}
+
+# FEATURE STARTER #
+#-----------------#
+f() { gs && gup && git flow feature start $* && gsp }
+
+# GIT UPDATE AND PRUNE
+#--------------------#
+gup() {
+	git diff --exit-code > /dev/null
+	WORKING=$?
+
+	git diff --cached --exit-code
+	STAGED=$?
+
+	if [ "$WORKING" -eq "1" ]; then
+		gs -k -u -q
+	fi
+
+	if [ "$STAGED" -eq "1" ]; then
+		gs -q
+	fi
+
+	gu &&
+	gb --merged develop | ag -v '^[* ] (develop|master)$' | xargs git branch -d
+
+	rm -f log/*.log
+
+	if [ "$STAGED" -eq "1" ]; then
+		gsp
+		giu
+	fi
+
+	if [ "$WORKING" -eq "1" ]; then
+		gsp
+	fi
+}
+
+export PATH="$PATH:$HOME/.rvm/bin" # Add RVM to PATH for scripting
+export NVM_DIR=~/.nvm
+source $(brew --prefix nvm)/nvm.sh
