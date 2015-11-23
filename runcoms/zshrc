@@ -96,7 +96,7 @@ bda() {
 	bundle install | grep -v '^Us'
 	
 	echo "* Migrating"
-	rake parallel:drop parallel:create db:migrate db:seed patch_operators_hosts parallel:prepare
+	rake parallel:drop parallel:create db:migrate db:seed patch_operators_hosts after_party:run parallel:prepare
 	rm -f .zeus.dead
 
 	echo "* Annotating"
