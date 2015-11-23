@@ -27,6 +27,9 @@ alias a2c='aria2c -x10 -s10 -k1M'
 alias gu='git up'
 alias hf='gss; gu; git flow hotfix start "v$(($(git tag | ag v\\d+$ | sort | tail -n 1 | cut -d v -f 2) + 1))" && gsp'
 
+# Heroku
+alias hap='heroku addons:open -r production'
+
 # Occasion
 alias oc='~/dev/occasion'
 alias pc='heroku run rails c -r production'
