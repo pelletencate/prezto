@@ -17,8 +17,7 @@ fi
 # Editors
 #
 
-export SUBLIME=subl
-export EDITOR="$SUBLIME --wait"
+export EDITOR="atom -w"
 export VISUAL=$EDITOR
 export PAGER='less'
 

@@ -5,10 +5,12 @@
 #   Sorin Ionescu <sorin.ionescu@gmail.com>
 #
 
+echo "executing zshenv"
+
 # Ensure that a non-login, non-interactive shell has a defined environment.
 if [[ "$SHLVL" -eq 1 && ! -o LOGIN && -s "${ZDOTDIR:-$HOME}/.zprofile" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprofile"
 fi
 
-export VISUAL='subl --wait'
-export EDITOR='subl --wait'
+export VISUAL='atom -w'
+export EDITOR='atom -w'
