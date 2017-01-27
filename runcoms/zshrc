@@ -12,53 +12,150 @@ fi
 
 # Customize to your needs...
 
-# Load NVM
-export NVM_DIR=~/.nvm
-source $(brew --prefix nvm)/nvm.sh
-
 ###########
 # Aliases #
 ###########
-alias ea='e ~/.zshrc && source ~/.zshrc'
+alias ea='e ~/.zprezto/runcoms/zshrc && source ~/.zshrc'
 
 alias a2c='aria2c -x10 -s10 -k1M'
 
+alias mt='multitail -cT ansi'
+
+# alias cup="brew update; for app in \$(brew cask list); do cver='\$(brew cask info '${app}' | head -n 1 | cut -d \" \" -f 2)'; ivers=\$(ls -1 \"/usr/local/Caskroom/${app}/.metadata/\" | tr '\n' ' ' | sed -e 's/ $//'); aivers=(${ivers}); nvers=\$(echo ${#aivers[@]}); echo \"[] ${app}:  ${ivers} -> ${cver}\"; if [[ ${nvers} -eq 1 ]]; then echo \"${ivers}\" | grep -q   ^${cver}$\" && { continue; }; fi; brew cask uninstall \"${app}\" --force; brew cask install \"${app}\"; done"
+alias cup="brew upgrade; for app in \$(brew cask list); do cver=\"\$(brew cask info \"\${app}\" | head -n 1 | cut -d \" \" -f 2)\"; ivers=\$(ls -1 \"/usr/local/Caskroom/\${app}/.metadata/\" | tr '\n' ' ' | sed -e 's/ \$//'); aivers=(\${ivers}); nvers=\$(echo \${#aivers[@]}); echo \"* \${app}: \${ivers} -> \${cver}\"; if [[ \${nvers} -eq 1 ]]; then echo \"\${ivers}\" | grep -q \"^\${cver}\$\" && { continue; }; fi; brew cask uninstall \"\${app}\" --force; brew cask install \"\${app}\"; done"
+
+# Docker-machine
+alias dm='docker-machine start dev && eval $(docker-machine env dev)'
+
 # Git
 alias gu='git up'
-alias hf='gss; gu; git flow hotfix start "v$(($(git tag | ag v\\d+$ | sort | tail -n 1 | cut -d v -f 2) + 1))" && gsp'
+alias hf='gss; gco master; gu; git flow hotfix start "$(($(git tag | ag \^v\\d+$ | sort | tail -n 1 | cut -d v -f 2) + 1))" && gsp'
 
 # Heroku
-alias hap='heroku addons:open -r production'
+alias hpa='hp addons:open'
+alias hpc='hp run rails c'
 
 # Occasion
 alias oc='~/dev/occasion'
-alias pc='heroku run rails c -r production'
 
 # Zeus
-alias kz='pkill -kill zeus; pkill -kill fsevents-wrapper; rm -f .zeus.sock' 
+alias kz='pkill -term sidekiq; pkill -kill zeus; pkill -kill fsevents-wrapper; rm -f .zeus.sock'
 
 #############
 # Functions #
 #############
 
+# HEROKU SHORTCUTS #
+#------------------#
+hp() { heroku $* -r production }
+hs() { heroku $* -r staging }
+
 # ZEUS STARTER #
 #--------------#
-z() { 
-	if (( $# == 0 )) then 
+z() {
+  oc
+	if (( $# == 0 )) then
 		while; do
+			clear
 			[ -e .zeus.dead ] || zeus start
 			sleep 1 || break
 		done
-	else 
+	else
 		zeus $*
-	fi 
+		stty sane
+	fi
+}
+
+zq() {
+	while; do
+		[ -e .zeus.dead ] || z q
+		stty sane
+		sleep 2 || break
+	done
 }
 
 zs() {
-	while; do 
+	while; do
 		[ -e .zeus.dead ] || z s
-		sleep 1 || break
+		stty sane
+		sleep 2 || break
 	done
+}
+
+# chf() {
+# 	gup
+# 	gss
+# 	HOTFIX_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+# 	echo "* Waiting for build to proceed and releasing to production"
+# 	gm master
+# 	echo 'merged'
+# 	gp || echo "*** PUSH FAILED ***" && return
+# 	echo 'pushed'
+# 	gco master
+# 	echo 'checkout done'
+# 	gm $HOTFIX_BRANCH
+# 	echo 'merged'
+# 	git tag v$(echo $HOTFIX_BRANCH | cut -d '/' -f 2)
+# 	echo 'tag added'
+# 	while [ $(hub ci-status $HOTFIX_BRANCH) == "pending" ]; do
+# 	echo 'built'
+# 		sleep 5
+# 	done
+# 	echo 'built'
+# 	gpt || echo "*** PUSH FAILED ***" && return
+# 	echo "* Merging develop into hotfix and waiting for build to proceed"
+# 	gco $HOTFIX_BRANCH
+# 	echo 'built'
+# 	gm develop
+# 	echo 'built'
+# 	gp || echo "*** PUSH FAILED ***" && return
+# 	echo 'built'
+# 	gco develop
+# 	echo 'built'
+# 	gm $HOTFIX_BRANCH
+# 	echo 'built'
+# 	while [ $(hub ci-status) == "pending" ]; do
+# 		sleep 5
+# 	done
+# 	echo 'built'
+# 	gp || echo "*** PUSH FAILED ***" && return
+# }
+
+gup() {
+  startingBranch=$(git rev-parse --abbrev-ref HEAD)
+
+  git diff --exit-code > /dev/null
+  working=$?
+
+  git diff --cached --exit-code
+  staged=$?
+
+  if [ "$working" -eq "1" ]; then
+    gs -k -u -q
+  fi
+
+  if [ "$staged" -eq "1" ]; then
+    gs -q
+  fi
+
+  gf
+  for branch in $(git for-each-ref --format="%(refname:short) %(push:track)" refs/heads | ag '\]$' | cut -d ' ' -f 1); do
+    git checkout $branch || return 1
+    git pull || return 1
+  done
+
+  gb --merged develop | ag -v '^[* ] (develop|master)$' | xargs git branch -d
+
+  gco $startingBranch || return 1
+
+  if [ "$staged" -eq "1" ]; then
+    gsp
+    giu
+  fi
+
+  if [ "$working" -eq "1" ]; then
+    gsp
+  fi
 }
 
 # DATABASE UPDATER #
@@ -67,13 +164,13 @@ bda() {
 	oc
 	echo "* Locating dump"
 
-	if (( $# == 0 )) then 
-		DUMP=$(heroku pg:backups info -r production | cut -d ' ' -f 4 | head -n 1)			
-	else 
-		DUMP=$* 
+	if (( $# == 0 )) then
+		DUMP=$(heroku pg:backups info -r production | cut -d ' ' -f 4 | head -n 1)
+	else
+		DUMP=$*
 	fi
 
-	[ -e "dumps/"$DUMP ] || aria2c -s10 -x10 -k1M -o dumps/$DUMP $(heroku pg:backups public-url $DUMP -r production)
+	[ -e "dumps/"$DUMP ] || aria2c -s10 -x10 -k1M -o dumps/$DUMP $(heroku pg:backups:public-url $DUMP -r production)
 	if [ "$?" -ne "0" ]; then
 		rm -f dumps/$DUMP*
 		echo "Incorrect dump: $DUMP"
@@ -84,23 +181,32 @@ bda() {
 
 	touch .zeus.dead
 	kz
-	rm -f db/schema.rb 
-	dropdb --if-exists occsn > /dev/null &&
-	createdb occsn
+	rm -f db/schema.rb
+	for db in occsn occsn_test occsn_test2 occsn_test3 occsn_test4 occsn_test5 occsn_test6 occsn_test7 occsn_test8; do
+		dropdb --if-exists $db > /dev/null &&
+		createdb $db
+	done
 
 	if [ "$?" -ne "0" ]; then
-		echo "Failed dropping / creating databases. Exiting."
+		echo "Failed dropping / creating databases. Aborting."
+		rm -f .zeus.dead
 		return
 	fi
 
-	pg_restore --no-acl --no-owner -h localhost -d occsn dumps/$DUMP
+	pg_restore --no-acl --no-owner -h localhost -d occsn -j 8 dumps/$DUMP
 
 	echo "* Installing dependencies"
 	bundle install | grep -v '^Us'
-	
+
 	echo "* Migrating"
-	rake parallel:drop parallel:create db:migrate db:seed patch_operators_hosts after_party:run parallel:prepare
+	rake db:migrate
+  rake db:seed patch_operators_hosts after_party:run parallel:load_schema
 	rm -f .zeus.dead
+
+	if [ "$?" -ne "0" ]; then
+		echo "Rake error. Aborting."
+		return
+	fi
 
 	echo "* Annotating"
 	annotate
@@ -108,40 +214,131 @@ bda() {
 
 # FEATURE STARTER #
 #-----------------#
-f() { gs && gup && git flow feature start $* && gsp }
 
-# GIT UPDATE AND PRUNE
-#--------------------#
-gup() {
-	git diff --exit-code > /dev/null
-	WORKING=$?
+f() {
+  gup
+  gs
+  if [ "$(gb | sed -e 's/[* ] //g' | grep -c "^feature/.*$*")" -ne "1" ]; then
+    echo "Ambiguous or invalid argument"
+    return
+  fi
+  F_BRANCH=$(gb | sed -e 's/[* ] //g' | grep "^feature/.*$*")
 
-	git diff --cached --exit-code
-	STAGED=$?
-
-	if [ "$WORKING" -eq "1" ]; then
-		gs -k -u -q
-	fi
-
-	if [ "$STAGED" -eq "1" ]; then
-		gs -q
-	fi
-
-	gu &&
-	gb --merged develop | ag -v '^[* ] (develop|master)$' | xargs git branch -d
-
-	rm -f log/*.log
-
-	if [ "$STAGED" -eq "1" ]; then
-		gsp
-		giu
-	fi
-
-	if [ "$WORKING" -eq "1" ]; then
-		gsp
-	fi
+  # Check out branch
+  gco $F_BRANCH &&
+  bundle install | grep -v '^Us'
+  dbs
 }
 
-export PATH="$PATH:$HOME/.rvm/bin" # Add RVM to PATH for scripting
-export NVM_DIR=~/.nvm
-source $(brew --prefix nvm)/nvm.sh
+ff() { gs && gup && git flow feature start $* && gsp && dbs }
+
+# Drop unused databases
+dbc() {
+  F_DBS=$(psql -l -t | cut -d'|' -f1 | sed -e 's/ //g' -e '/^$/d' | egrep 'occsn_\w{32}')
+  F_FEATURES=$(for line in $(gb | sed -e 's/[* ] //g' | grep '^feature/'); do; echo occsn_$(echo $line | md5); done)
+  kz
+  comm -23 <(echo $F_DBS | sort) <(echo $F_FEATURES | sort) | xargs -I % sh -c 'echo "Dropping database %"; dropdb %;'
+}
+
+# Recreate and migrate database
+_dbr() {
+  F_FEATURE=occsn_$(git rev-parse --abbrev-ref HEAD | md5)
+
+  # Create and migrate new database, and recreate test databases.
+  dropdb --if-exists $F_FEATURE
+  createdb -T occsn $F_FEATURE
+  _dbm
+}
+
+dbr() {
+  touch .zeus.dead
+  kz
+  _dbr
+  rm -f .zeus.dead
+}
+
+_dbm() {
+  rm -f db/schema.rb
+  rake db:migrate
+  rake db:seed patch_operators_hosts after_party:run
+}
+
+dbm() {
+  touch .zeus.dead
+  kz
+  _dbm
+  rm -f .zeus.dead
+}
+
+_dbt() {
+  rake parallel:drop parallel:create parallel:load_schema
+}
+
+dbt() {
+  touch .zeus.dead
+  kz
+  _dbt
+  rm -f .zeus.dead
+}
+
+_dbs() {
+  F_DBS=$(psql -l -t | cut -d'|' -f1 | sed -e 's/ //g' -e '/^$/d' | egrep 'occsn_\w{32}') || return 1
+  F_FEATURE=occsn_$(git rev-parse --abbrev-ref HEAD | md5)
+  if [ "$(grep $F_FEATURE <<< $F_DBS | wc -l)" -ne "1" ]; then
+    dbs
+  fi
+}
+
+# Setup database - Does dbc, then dbr. Asks to do dbr or dbm in case database already exists.
+dbs() {
+  touch .zeus.dead
+  kz
+
+  F_DBS=$(psql -l -t | cut -d'|' -f1 | sed -e 's/ //g' -e '/^$/d' | egrep 'occsn_\w{32}') || return 1
+  F_FEATURE=occsn_$(git rev-parse --abbrev-ref HEAD | md5)
+
+  # Create database
+  DROP=y
+  if [ "$(grep $F_FEATURE <<< $F_DBS | wc -l)" -eq "1" ]; then
+    read -k 1 "?Database $F_FEATURE already exists. Drop it? "
+    echo
+    DROP=$REPLY
+    if [[ ! $DROP =~ ^[Yy]$ ]]; then
+      read -k 1 "?Apply migrations and stuff? "
+      echo
+      MIGRATE=$REPLY
+    fi
+  fi
+  read -k 1 "?Initialize test databases? "
+  echo
+  TESTPREPARE=$REPLY
+
+  if [[ $DROP =~ ^[Yy]$ ]]; then
+    _dbr
+  else
+    if [[ $MIGRATE =~ ^[Yy]$ ]]; then
+      _dbm
+    fi
+  fi
+  if [[ $TESTPREPARE =~ ^[Yy]$ ]]; then
+    _dbt
+  fi
+  rm -f .zeus.dead
+}
+
+# Drops all feature databases and reloads Occasion database
+dbu() {
+  touch .zeus.dead
+  kz
+  dropdb --if-exists occsn > /dev/null && createdb occsn && \
+  psql -l -t | cut -d'|' -f1 | sed -e 's/ //g' -e '/^$/d' | egrep 'occsn_\w{32}' | xargs -L 1 dropdb
+  aria2c -s10 -x10 -k1M -d /tmp -o dump $(heroku pg:backups:public-url -r production) && \
+  pg_restore /tmp/dump --no-acl --no-owner -d occsn -j 8 && \
+  rm -f /tmp/dump
+  dbs
+}
+
+export PATH="$PATH:$HOME/bin:$HOME/.rvm/bin" # Add RVM to PATH for scripting
+
+test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+[[ -s "$HOME/.avn/bin/avn.sh" ]] && source "$HOME/.avn/bin/avn.sh" # load avn

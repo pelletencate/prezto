@@ -12,5 +12,6 @@ if [[ "$SHLVL" -eq 1 && ! -o LOGIN && -s "${ZDOTDIR:-$HOME}/.zprofile" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprofile"
 fi
 
-export VISUAL='atom -w'
-export EDITOR='atom -w'
+export VISUAL='subl -w'
+export EDITOR='subl -w'
+export GITHUB_TOKEN='88704817662a99042101704a757344fdcf9a1ada'
