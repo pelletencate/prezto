@@ -12,22 +12,22 @@ fi
 
 # Customize to your needs...
 
+export NVM_DIR="$HOME/.nvm"
+. "/usr/local/opt/nvm/nvm.sh"
+
+test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+
+
 ###########
 # Aliases #
 ###########
-alias ea='e ~/.zprezto/runcoms && source ~/.zshrc'
+alias ea='e ~/.zprezto/runcoms && . ~/.zprofile && . ~/.zshrc'
 
 alias a2c='aria2c -x10 -s10 -k1M'
 
 alias mt='multitail -cT ansi'
 
 alias cup="brew update && brew upgrade && for app in \$(brew cask list); do cver=\"\$(brew cask info \"\${app}\" | head -n 1 | cut -d \" \" -f 2)\"; ivers=\$(ls -1 \"/usr/local/Caskroom/\${app}/.metadata/\" | tr '\n' ' ' | sed -e 's/ \$//'); aivers=(\${ivers}); nvers=\$(echo \${#aivers[@]}); echo \"* \${app}: \${ivers} -> \${cver}\"; if [[ \${nvers} -eq 1 ]]; then echo \"\${ivers}\" | grep -q \"^\${cver}\$\" && { continue; }; fi; brew cask uninstall \"\${app}\" --force; brew cask install \"\${app}\"; done"
-
-# Docker-machine
-alias dm='docker-machine start dev && eval $(docker-machine env dev)'
-
-# Git
-alias gu='git up'
 
 # Heroku
 alias hpa='hp addons:open'
@@ -123,11 +123,11 @@ gup() {
   gf --tags
 
   for branch in $(git for-each-ref --format="%(refname:short) %(push:track)" refs/heads | ag '\]$' | cut -d ' ' -f 1); do
-    git checkout -q $branch || return 1
-    git pull -q || return 1
+    git checkout $branch || return 1
+    git pull || return 1
   done
 
-  git branch --merged develop | ag -v '^(\*|[* ]*(develop|master)$)' | sed -e 's/^[* ]*//g' | xargs git branch -q -d || return 1
+  git branch --merged develop | ag -v "($startingBranch|^(\*|[* ]*(develop|master)$))" | sed -e 's/^[* ]*//g' | xargs git branch -q -d
 
   gco -q $startingBranch
 
@@ -159,7 +159,7 @@ f() {
       if [ $count -ne "1" ]; then
         if [ $count -eq "0" ]; then
           # No remote branch found. Create new branch
-           branch_name=$(hub issue -f $'%I %t\n' | grep "^$feature_number " | sed -e 's/[^a-z0-9-]/_/gi' -e 's/[^A-Z]\([A-Z]\)/_\L\1/g' -e 's/\([A-Z]\)/\L\1/g' -e 's/__*/_/g' -e 's/^_//' -e 's/_$//g')
+           branch_name=$(hub issue -f $'%I %t\n' | grep "^$feature_number " | sed -e 's/[^a-z0-9-]/_/gi' -e 's/\([^A-Z]\)\([A-Z]\)/\1_\L\2/g' -e 's/\([A-Z]\)/\L\1/g' -e 's/__*/_/g' -e 's/^_//' -e 's/_$//g')
           if [ $(echo $branch_name | wc -l) -eq 1 ]; then
             gco -b "feature/$branch_name" develop
           else
@@ -171,19 +171,18 @@ f() {
           return
         fi
       else
-        F_BRANCH=$(gb -r | grep '^[* ] origin' | sed -e 's/[* ] origin\///g' | grep "^feature/$feature_number")
+        gco $(gb -r | grep '^[* ] origin' | sed -e 's/[* ] origin\///g' | grep "^feature/$feature_number")
       fi
     else
       echo "Multiple local branches for feature $feature_number"
       return
     fi
   else
-    F_BRANCH=$(gb | sed -e 's/[* ] //g' | grep "^feature/.*$feature_number")
+    gco $(gb | sed -e 's/[* ] //g' | grep "^feature/.*$feature_number")
   fi
 
   # Check out branch
-  gco $F_BRANCH &&
-  bundle install | grep -v '^Us'
+  (bundle install && bundle clean --force) | grep -v '^Us'
   dbs
 
   [ $staged = 'dirty' ] && gsp && giu
@@ -294,8 +293,3 @@ trim() {
     var="${var%"${var##*[![:space:]]}"}"   # remove trailing whitespace characters
     echo -n "$var"
 }
-
-export NVM_DIR="$HOME/.nvm"
-. "/usr/local/opt/nvm/nvm.sh"
-
-test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
